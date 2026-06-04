@@ -488,6 +488,46 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Demand Forecast Chart */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            향후 일주일 예상 방문객 추이
+          </h3>
+          <div className="group relative">
+            <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold cursor-help hover:bg-slate-300 transition-colors">
+              ?
+            </div>
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <p className="font-semibold mb-1">방문객 예측 기준</p>
+              <p className="text-slate-300">오픈시그널 AI가 사장님의 <span className="text-violet-300">업종, 가게 위치(지역), 그리고 향후 7일간의 날씨 예보</span> 데이터를 종합적으로 분석하여 예상 방문객 수를 논리적으로 추정합니다.</p>
+              <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 mb-3 h-[240px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={weeklyChartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#64748b', fontWeight: 600 }} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                labelStyle={{ color: '#64748b', fontWeight: 700, marginBottom: '4px' }}
+                itemStyle={{ color: '#8b5cf6', fontWeight: 700 }}
+              />
+              <Area type="monotone" dataKey="visitors" stroke="#8b5cf6" strokeWidth={4} fillOpacity={1} fill="url(#colorVisitors)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -586,46 +626,6 @@ export default function Home() {
               <p className="text-lg font-bold text-slate-800">{proofSummary.nextCleanupDate}</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Demand Forecast Chart */}
-      <section className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            향후 일주일 예상 방문객 추이
-          </h3>
-          <div className="group relative">
-            <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold cursor-help hover:bg-slate-300 transition-colors">
-              ?
-            </div>
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-              <p className="font-semibold mb-1">방문객 예측 기준</p>
-              <p className="text-slate-300">오픈시그널 AI가 사장님의 <span className="text-violet-300">업종, 가게 위치(지역), 그리고 향후 7일간의 날씨 예보</span> 데이터를 종합적으로 분석하여 예상 방문객 수를 논리적으로 추정합니다.</p>
-              <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 mb-3 h-[240px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={weeklyChartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#64748b', fontWeight: 600 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                labelStyle={{ color: '#64748b', fontWeight: 700, marginBottom: '4px' }}
-                itemStyle={{ color: '#8b5cf6', fontWeight: 700 }}
-              />
-              <Area type="monotone" dataKey="visitors" stroke="#8b5cf6" strokeWidth={4} fillOpacity={1} fill="url(#colorVisitors)" />
-            </AreaChart>
-          </ResponsiveContainer>
         </div>
       </section>
 
