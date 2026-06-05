@@ -5,6 +5,7 @@ import { CloudRain, TrendingUp, ChevronRight, Sun, Cloud, Snowflake, X, ReceiptT
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import logoImg from '../assets/naeil.png';
 import {
   getNextCleanupDateLabel,
   getWeekRange,
@@ -456,7 +457,9 @@ export default function Home() {
       {/* Header */}
       <header className="mb-6 mt-2">
         <div className="flex items-center justify-between mb-2">
-          <div className="relative h-7 w-[60px] flex items-center overflow-visible">
+          <div className="flex items-center gap-2">
+            <img src={logoImg} alt="내:일 로고" className="w-7 h-7 object-contain" />
+            <div className="relative h-7 w-[60px] flex items-center overflow-visible">
             <AnimatePresence mode="wait">
               <motion.h1
                 key={logoState}
@@ -469,6 +472,7 @@ export default function Home() {
                 {logoState === 0 ? '내:일' : 'NAE:IL'}
               </motion.h1>
             </AnimatePresence>
+          </div>
           </div>
           <button 
             onClick={() => setIsWeatherModalOpen(true)}
