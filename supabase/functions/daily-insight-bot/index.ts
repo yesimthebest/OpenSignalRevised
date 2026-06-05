@@ -107,6 +107,23 @@ export default {
         let eventFactors = "특이사항 없음";
         let aiForecasts: any[] = [];
 
+        // 2.5) 최근 7일치 평균 방문객(customer_count) 계산
+        let avgVisitorsInfo = "";
+        const { data: recentLogs, error: recentLogsErr } = await supabase
+          .from('daily_business_logs')
+          .select('customer_count')
+          .eq('store_id', owner.id)
+          .order('log_date', { ascending: false })
+          .limit(7);
+          
+        if (!recentLogsErr && recentLogs && recentLogs.length > 0) {
+          const totalCustomers = recentLogs.reduce((acc, log) => acc + (log.customer_count || 0), 0);
+          const avgCustomers = Math.round(totalCustomers / recentLogs.length);
+          avgVisitorsInfo = `\n[중요 데이터] 최근 이 매장의 일평균 실제 방문객 수는 약 ${avgCustomers}명입니다. 이 실제 수치를 기준점(Base)으로 삼아, 요일 특성과 내일 날씨에 따른 증감을 계산하여 방문객 수를 현실적으로 추정해주세요. (절대 터무니없는 숫자를 제시하지 마세요)`;
+        } else {
+          avgVisitorsInfo = `\n[참고] 아직 매장의 최근 방문객 데이터가 없습니다. 해당 지역(${region})과 업종(${industry})의 평균적인 방문객 수를 임의로 가정하여 논리적으로 추정해주세요.`;
+        }
+
         if (openAiKey) {
           const datesText = targetDatesList.map(w => `${w.date}(${w.dow})`).join(', ');
           const weatherText = forecastList.length > 0 ? forecastList.join(', ') : '알 수 없음';
@@ -120,7 +137,7 @@ export default {
 향후 5일간 예상 날씨(OpenWeatherMap 기준): ${weatherText}
 향후 7일 날짜 목록 (내일부터 시작): ${datesText}
 
-위 날짜 목록에 해당하는 '내일부터 7일간'의 날씨를 OpenWeatherMap 데이터를 참고하여 예측하고, 요일별 특성(주말/평일), 업종 특성을 종합하여 향후 7일간의 일일 예상 방문객 수(명)를 현실적으로 추정해주세요. (랜덤한 값이 아닌 논리적인 추정치)
+위 날짜 목록에 해당하는 '내일부터 7일간'의 날씨를 OpenWeatherMap 데이터를 참고하여 예측하고, 요일별 특성(주말/평일), 업종 특성을 종합하여 향후 7일간의 일일 예상 방문객 수(명)를 현실적으로 추정해주세요. (랜덤한 값이 아닌 논리적인 추정치)${avgVisitorsInfo}
 
 또한 내일 날씨(${tomorrowWeather})에 완벽하게 맞춤화된 실용적인 마케팅 인사이트 2개와 내일 예상되는 특이사항 1줄(event_factors), 그리고 그 특이사항에 대한 상세 설명 3줄(event_factors_detail)을 작성해주세요.
 (주의: 특정 실시간 지역 행사나 축제를 임의로 지어내지 마세요. 대신 '${region}' 지역의 일반적인 상권 특성(예: 오피스 상권, 대학가, 주거지 등)과 보편적인 계절적 요인(예: 가정의 달, 장마철 등)만을 활용하여 분석하세요. 절대로 '이전 데이터입니다' 같은 문구 사용 금지)
