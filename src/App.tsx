@@ -59,9 +59,9 @@ function BottomNav({ isOwner }: { isOwner: boolean }) {
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/authStore';
-import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CustomerHome from './pages/CustomerHome';
+import { createLocalGuestUser, getOrCreateGuestNickname, readLocalProfile } from './lib/localProfile';
 
 function App() {
   const { user, userRole, setSession, setUser, setUserRole, setStoreName, setStoreRegion, setStoreIndustry } = useAuthStore();
@@ -72,19 +72,58 @@ function App() {
     
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        let { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
+
+        if (!session?.user) {
+          const nickname = getOrCreateGuestNickname();
+          try {
+            const { data, error: anonymousError } = await supabase.auth.signInAnonymously({
+              options: {
+                data: { full_name: nickname },
+              },
+            });
+            if (anonymousError) {
+              console.warn('Anonymous auth unavailable, using local guest user:', anonymousError.message);
+              session = null;
+              if (isMounted) {
+                setSession(null);
+                setUser(createLocalGuestUser());
+              }
+            } else {
+              session = data.session;
+            }
+          } catch (anonymousError: any) {
+            console.warn('Anonymous auth unavailable, using local guest user:', anonymousError?.message || anonymousError);
+            session = null;
+            if (isMounted) {
+              setSession(null);
+              setUser(createLocalGuestUser());
+            }
+          }
+        }
         
         if (isMounted) {
           setSession(session);
-          setUser(session?.user || null);
+          setUser(session?.user || useAuthStore.getState().user || null);
         }
         
-        if (session?.user) {
+        const activeUser = session?.user || useAuthStore.getState().user;
+
+        if (activeUser) {
+          const localProfile = readLocalProfile();
+          if (localProfile.role) {
+            setUserRole(localProfile.role);
+            setStoreName(localProfile.storeName);
+            setStoreRegion(localProfile.storeRegion);
+            setStoreIndustry(localProfile.storeIndustry);
+            return;
+          }
+
           const { data, error: profileError } = await supabase
             .from('profiles')
             .select('role, store_name, store_region, store_industry')
-            .eq('id', session.user.id)
+            .eq('id', activeUser.id)
             .single();
             
           if (isMounted) {
@@ -162,11 +201,7 @@ function App() {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
-
-  if (!userRole) {
+  if (!user || !userRole) {
     return <Onboarding />;
   }
 

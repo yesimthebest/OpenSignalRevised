@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
-import { Store, User, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Store, User, ArrowRight } from 'lucide-react';
+import { writeLocalProfile } from '../lib/localProfile';
 
 export default function Onboarding() {
   const { user, setUserRole, setStoreName, setStoreRegion, setStoreIndustry } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   
-  const [step, setStep] = useState<'role_selection' | 'store_input'>('role_selection');
+  const [step, setStep] = useState<'role_selection' | 'store_input'>('store_input');
   const [storeNameInput, setStoreNameInput] = useState('');
   const [storeRegionInput, setStoreRegionInput] = useState('');
   const [storeIndustryInput, setStoreIndustryInput] = useState('');
@@ -28,15 +29,17 @@ export default function Onboarding() {
     setErrorMessage('');
     
     try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('데이터베이스 응답 시간이 초과되었습니다. (5초)')), 5000));
-      
-      const insertPromise = supabase.from('profiles').insert([
+      writeLocalProfile({
+        role,
+        storeName,
+        storeRegion,
+        storeIndustry,
+      });
+
+      const { error } = await supabase.from('profiles').upsert([
         { id: user.id, role: role, store_name: storeName, store_region: storeRegion, store_industry: storeIndustry }
       ]);
-
-      const result: any = await Promise.race([insertPromise, timeout]);
-      
-      if (result && result.error) throw result.error;
+      if (error) console.warn('Profile sync skipped:', error);
       
       setStoreName(storeName);
       setStoreRegion(storeRegion);
@@ -100,14 +103,10 @@ export default function Onboarding() {
             )}
 
             <button 
-              onClick={() => {
-                localStorage.clear();
-                sessionStorage.clear();
-                window.location.href = '/';
-              }}
+              onClick={() => setStep('store_input')}
               className="mt-6 text-sm text-slate-400 underline hover:text-slate-600"
             >
-              다른 계정으로 로그인
+              가게 정보 입력하기
             </button>
           </motion.div>
         ) : (
@@ -118,14 +117,7 @@ export default function Onboarding() {
             exit={{ opacity: 0, y: -20 }}
             className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-8"
           >
-            <button 
-              onClick={() => setStep('role_selection')}
-              className="text-slate-400 hover:text-slate-600 mb-6 flex items-center gap-1 text-sm font-medium"
-            >
-              <ArrowLeft size={16} /> 뒤로가기
-            </button>
-            
-            <h1 className="text-2xl font-bold text-slate-800 mb-2">사장님, 반가워요! 👨‍🍳</h1>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">사장님, 반가워요!</h1>
             <p className="text-slate-500 mb-8 text-sm">운영 중이신 매장 이름을 알려주세요.</p>
 
             <div className="mb-4">

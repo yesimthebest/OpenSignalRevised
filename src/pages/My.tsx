@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Store, LogOut, Settings as SettingsIcon, Repeat, User, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { getDisplayName, readLocalProfile, writeLocalProfile } from '../lib/localProfile';
 
 export default function My() {
   const { user, userRole, storeName, storeRegion, storeIndustry, setUserRole, setStoreName, setStoreRegion, setStoreIndustry } = useAuthStore();
@@ -27,13 +28,24 @@ export default function My() {
     if (!user) return;
     setIsUpdatingStore(true);
     try {
-      const { error } = await supabase.from('profiles').update({
+      const nextProfile = {
+        ...readLocalProfile(),
+        role: userRole,
+        storeName: editStoreNameInput,
+        storeRegion: editStoreRegionInput,
+        storeIndustry: editStoreIndustryInput,
+      };
+      writeLocalProfile(nextProfile);
+
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        role: userRole,
         store_name: editStoreNameInput,
         store_region: editStoreRegionInput,
         store_industry: editStoreIndustryInput
-      }).eq('id', user.id);
+      });
       
-      if (error) throw error;
+      if (error) console.warn('Profile sync skipped:', error);
       
       setStoreName(editStoreNameInput);
       setStoreRegion(editStoreRegionInput);
@@ -51,6 +63,7 @@ export default function My() {
   const handleLogout = async () => {
     localStorage.clear();
     sessionStorage.clear();
+    await supabase.auth.signOut();
     window.location.href = '/';
   };
 
@@ -59,12 +72,22 @@ export default function My() {
     setIsSwitching(true);
     
     try {
-      const { error } = await supabase.from('profiles').update({ 
+      const nextProfile = {
+        ...readLocalProfile(),
         role: targetRole,
-        ...(targetStoreName ? { store_name: targetStoreName } : {})
-      }).eq('id', user.id);
+        storeName: targetStoreName || storeName,
+      };
+      writeLocalProfile(nextProfile);
+
+      const { error } = await supabase.from('profiles').upsert({ 
+        id: user.id,
+        role: targetRole,
+        store_name: nextProfile.storeName,
+        store_region: nextProfile.storeRegion,
+        store_industry: nextProfile.storeIndustry,
+      });
       
-      if (error) throw error;
+      if (error) console.warn('Profile sync skipped:', error);
       
       setUserRole(targetRole);
       if (targetStoreName) setStoreName(targetStoreName);
@@ -120,8 +143,8 @@ export default function My() {
                 <span className="text-xs font-semibold text-slate-500">{storeName}</span>
               )}
             </div>
-            <h1 className="text-xl font-bold text-slate-800">{user?.user_metadata?.full_name || '유저'}</h1>
-            <p className="text-sm text-slate-500">{user?.email}</p>
+            <h1 className="text-xl font-bold text-slate-800">{getDisplayName(user)}</h1>
+            <p className="text-sm text-slate-500">로그인 없이 이용 중</p>
           </div>
         </div>
       </div>
@@ -157,7 +180,7 @@ export default function My() {
         )}
         <button onClick={handleLogout} className="flex items-center gap-3 p-4 active:bg-slate-50 transition-colors text-left">
           <LogOut className="text-rose-400" size={24} />
-          <span className="font-medium text-rose-500">로그아웃</span>
+          <span className="font-medium text-rose-500">처음부터 다시 시작</span>
         </button>
       </div>
 

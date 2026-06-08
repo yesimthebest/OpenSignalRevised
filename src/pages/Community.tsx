@@ -4,6 +4,7 @@ import { MessageCircle, Heart, Share2, MapPin, Gift, Plus, X, Send, Store, Trash
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import { getDisplayName } from '../lib/localProfile';
 
 type Post = {
   id: string;
@@ -30,6 +31,30 @@ type Comment = {
   content: string;
   created_at: string;
 };
+
+const LOCAL_POSTS_KEY = 'naeil_local_posts';
+const LOCAL_COMMENTS_KEY = 'naeil_local_comments';
+const LOCAL_LIKES_KEY = 'naeil_local_likes';
+
+const readJsonArray = <T,>(key: string): T[] => {
+  try {
+    const rawValue = localStorage.getItem(key);
+    return rawValue ? JSON.parse(rawValue) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeJsonArray = <T,>(key: string, value: T[]) => {
+  localStorage.setItem(key, JSON.stringify(value));
+};
+
+const readLocalPosts = () => readJsonArray<Post>(LOCAL_POSTS_KEY);
+const writeLocalPosts = (posts: Post[]) => writeJsonArray(LOCAL_POSTS_KEY, posts);
+const readLocalComments = () => readJsonArray<Comment>(LOCAL_COMMENTS_KEY);
+const writeLocalComments = (comments: Comment[]) => writeJsonArray(LOCAL_COMMENTS_KEY, comments);
+const readLocalLikes = (userId: string) => new Set(readJsonArray<string>(`${LOCAL_LIKES_KEY}_${userId}`));
+const writeLocalLikes = (userId: string, likes: Set<string>) => writeJsonArray(`${LOCAL_LIKES_KEY}_${userId}`, [...likes]);
 
 export default function Community() {
   const { user, userRole, storeName } = useAuthStore();
@@ -60,7 +85,11 @@ export default function Community() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPosts(data || []);
+
+      const mergedPosts = [...(data || []), ...readLocalPosts()].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setPosts(mergedPosts);
       
       if (user) {
         const { data: likesData } = await supabase
@@ -68,13 +97,16 @@ export default function Community() {
           .select('post_id')
           .eq('user_id', user.id);
           
+        const nextLikes = readLocalLikes(user.id);
         if (likesData) {
-          setLikedPostIds(new Set(likesData.map(l => l.post_id)));
+          likesData.forEach(l => nextLikes.add(l.post_id));
         }
+        setLikedPostIds(nextLikes);
       }
     } catch (error: any) {
       console.error('Error fetching posts:', error);
-      alert(`데이터베이스 에러가 발생했습니다: ${error?.message || JSON.stringify(error)}`);
+      setPosts(readLocalPosts());
+      if (user) setLikedPostIds(readLocalLikes(user.id));
     } finally {
       setLoading(false);
     }
@@ -92,7 +124,7 @@ export default function Community() {
 
   const handleFabClick = () => {
     if (!user) {
-      alert('글쓰기는 로그인이 필요합니다.');
+      alert('사용자 정보를 준비 중입니다. 잠시 후 다시 시도해주세요.');
       navigate('/my');
       return;
     }
@@ -102,16 +134,30 @@ export default function Community() {
   const handlePostSubmit = async () => {
     if (!newContent.trim() || !user) return;
     setIsSubmitting(true);
+    const newPost: Post = {
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      title: newTitle || '동네생활',
+      content: newContent,
+      author_type: userRole || 'customer',
+      likes_count: 0,
+      user_id: user.id,
+      author_name: getDisplayName(user),
+      author_avatar: undefined,
+      author_store_name: userRole === 'owner' ? storeName || undefined : undefined,
+      comments: [{ count: 0 }],
+    };
+
     try {
       const { error } = await supabase.from('posts').insert([
         { 
-          title: newTitle || '동네생활',
-          content: newContent, 
-          author_type: userRole || 'customer', 
-          likes_count: 0,
-          user_id: user.id,
-          author_name: user.user_metadata.full_name || '동네주민',
-          author_avatar: user.user_metadata.avatar_url,
+          title: newPost.title,
+          content: newPost.content, 
+          author_type: newPost.author_type, 
+          likes_count: newPost.likes_count,
+          user_id: newPost.user_id,
+          author_name: newPost.author_name,
+          author_avatar: null,
           author_store_name: userRole === 'owner' ? storeName : null
         }
       ]);
@@ -124,7 +170,11 @@ export default function Community() {
       fetchPosts();
     } catch (error) {
       console.error('Error adding post:', error);
-      alert('글 작성에 실패했습니다.');
+      writeLocalPosts([newPost, ...readLocalPosts()]);
+      setPosts([newPost, ...posts]);
+      setNewTitle('');
+      setNewContent('');
+      setIsModalOpen(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +184,9 @@ export default function Community() {
     if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
     try {
       const { error } = await supabase.from('posts').delete().eq('id', postId);
-      if (error) throw error;
+      if (error) console.warn('Post sync delete skipped:', error);
+      writeLocalPosts(readLocalPosts().filter(p => p.id !== postId));
+      writeLocalComments(readLocalComments().filter(c => c.post_id !== postId));
       setPosts(posts.filter(p => p.id !== postId));
       if (expandedPostId === postId) setExpandedPostId(null);
     } catch (error) {
@@ -145,7 +197,7 @@ export default function Community() {
 
   const handleLike = async (post: Post) => {
     if (!user) {
-      alert('좋아요 기능은 로그인이 필요합니다.');
+      alert('사용자 정보를 준비 중입니다. 잠시 후 다시 시도해주세요.');
       navigate('/my');
       return;
     }
@@ -158,6 +210,7 @@ export default function Community() {
     if (isLiked) newLikedSet.delete(post.id);
     else newLikedSet.add(post.id);
     setLikedPostIds(newLikedSet);
+    if (user) writeLocalLikes(user.id, newLikedSet);
     
     try {
       if (isLiked) {
@@ -169,7 +222,6 @@ export default function Community() {
       }
     } catch (error) {
       console.error("좋아요 처리 실패:", error);
-      fetchPosts();
     }
   };
 
@@ -188,28 +240,44 @@ export default function Community() {
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      setComments(data || []);
+      const localComments = readLocalComments().filter(comment => comment.post_id === postId);
+      setComments([...(data || []), ...localComments].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      ));
     } catch (error) {
       console.error('Error fetching comments:', error);
+      setComments(readLocalComments().filter(comment => comment.post_id === postId));
     }
   };
 
   const handleCommentSubmit = async (postId: string) => {
     if (!user) {
-      alert("로그인이 필요합니다.");
+      alert('사용자 정보를 준비 중입니다. 잠시 후 다시 시도해주세요.');
       navigate('/my');
       return;
     }
     if (!newComment.trim()) return;
 
     setIsSubmittingComment(true);
+    const fallbackComment: Comment = {
+      id: crypto.randomUUID(),
+      post_id: postId,
+      user_id: user.id,
+      author_name: getDisplayName(user),
+      author_avatar: undefined,
+      author_type: userRole || 'customer',
+      author_store_name: userRole === 'owner' ? storeName || undefined : undefined,
+      content: newComment,
+      created_at: new Date().toISOString(),
+    };
+
     try {
       const { data, error } = await supabase.from('comments').insert([
         {
           post_id: postId,
           user_id: user.id,
-          author_name: user.user_metadata?.full_name || '유저',
-          author_avatar: user.user_metadata?.avatar_url || null,
+          author_name: getDisplayName(user),
+          author_avatar: null,
           author_type: userRole || 'customer',
           author_store_name: userRole === 'owner' ? storeName : null,
           content: newComment
@@ -233,7 +301,16 @@ export default function Community() {
       setNewComment('');
     } catch (error: any) {
       console.error('Error creating comment:', error);
-      alert(`댓글 작성에 실패했습니다. 상세 원인: ${error.message || JSON.stringify(error)}`);
+      writeLocalComments([...readLocalComments(), fallbackComment]);
+      setComments([...comments, fallbackComment]);
+      setPosts(posts.map(p => {
+        if (p.id === postId) {
+          const currentCount = p.comments?.[0]?.count || 0;
+          return { ...p, comments: [{ count: currentCount + 1 }] };
+        }
+        return p;
+      }));
+      setNewComment('');
     } finally {
       setIsSubmittingComment(false);
     }
@@ -243,7 +320,8 @@ export default function Community() {
     if (!confirm('정말로 이 댓글을 삭제하시겠습니까?')) return;
     try {
       const { error } = await supabase.from('comments').delete().eq('id', commentId);
-      if (error) throw error;
+      if (error) console.warn('Comment sync delete skipped:', error);
+      writeLocalComments(readLocalComments().filter(c => c.id !== commentId));
       setComments(comments.filter(c => c.id !== commentId));
       
       // 현재 화면의 댓글 수 - 1 처리 (낙관적 업데이트)

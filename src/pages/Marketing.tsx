@@ -4,6 +4,7 @@ import { Send, Users, CheckCircle2, ChevronRight, Plus, PieChart as PieChartIcon
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { getDisplayName } from '../lib/localProfile';
 
 export default function Marketing() {
   const { user, storeName } = useAuthStore();
@@ -117,7 +118,7 @@ export default function Marketing() {
           title: `🎉 [${target} 전용] 깜짝 이벤트 혜택!`,
           content: `${finalCopy}\n\n(※이 글은 마케팅 탭에서 자동 발행되었습니다.)`,
           author_type: 'owner',
-          author_name: user.email?.split('@')[0] || '사장님',
+          author_name: getDisplayName(user),
           author_store_name: storeName || '우리동네 카페',
           likes_count: 0
         });
